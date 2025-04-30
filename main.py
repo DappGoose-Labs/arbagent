@@ -16,7 +16,9 @@ from src.market_data import MarketDataService
 from src.arbitrage_detection import ArbitrageService
 from src.trade_simulation import TradeSimulationService
 from src.flashloan_execution import FlashloanExecutionService
-from src.config.config import MIN_PROFIT_THRESHOLD
+
+from config import MIN_PROFIT_THRESHOLD # Corrected import path
+from defi_agent import DeFiAgent
 
 # Configure logging
 logging.basicConfig(
@@ -37,13 +39,16 @@ class ArbitrageSystem:
     def __init__(self):
         """Initialize the arbitrage system."""
         logger.info("Initializing DeFi Arbitrage Trading System")
-        
+
         # Initialize all services
         self.market_data = MarketDataService()
         self.arbitrage_service = ArbitrageService(self.market_data)
         self.simulation_service = TradeSimulationService(self.arbitrage_service)
         self.execution_service = FlashloanExecutionService(self.simulation_service)
-        
+
+        # Initialize DeFi Agent (wallet address will be set after wallet is ready)
+        self.defi_agent: DeFiAgent = None
+
         # System state
         self.running = False
         self.auto_execute = False
@@ -59,6 +64,34 @@ class ArbitrageSystem:
             "total_fees_usd": 0,
             "total_gas_cost_usd": 0
         }
+    def _init_defi_agent(self):
+        """Initialize the DeFiAgent with the system's wallet address."""
+        # Try to get wallet address from execution_service
+        wallet_address = getattr(self.execution_service, 'wallet_address', None)
+        if wallet_address:
+            self.defi_agent = DeFiAgent(wallet_address)
+            logger.info(f"DeFiAgent initialized with wallet: {wallet_address}")
+        else:
+            logger.warning("DeFiAgent not initialized: wallet address not available.")
+
+    async def settle_and_redeploy_profits(self):
+        """Settle profits to stablecoin and redeploy to lending/staking."""
+        if not self.defi_agent:
+            self._init_defi_agent()
+            if not self.defi_agent:
+                logger.warning("Cannot settle/redeploy profits: DeFiAgent not available.")
+                return
+        successful = self.execution_service.get_successful_executions()
+        for trade in successful:
+            profit_token = trade.get("profit_token", "USDC")
+            profit_amount = trade.get("profit_usd", 0)
+            if profit_amount > 0:
+                # Settle to stablecoin (e.g., USDC)
+                settle_result = self.defi_agent.settle_profit(profit_token, profit_amount, to_stablecoin="USDC")
+                logger.info(f"Profit settlement result: {settle_result}")
+                # Redeploy to lending (e.g., Aave)
+                deploy_result = self.defi_agent.deploy_to_lending("USDC", profit_amount, protocol="AaveV3")
+                logger.info(f"Profit redeployment result: {deploy_result}")
     
     async def start(self, auto_execute: bool = False):
         """
@@ -100,17 +133,20 @@ class ArbitrageSystem:
         finally:
             # Stop all services
             logger.info("Stopping all services")
-            
+
+            # Settle and redeploy profits before shutdown
+            await self.settle_and_redeploy_profits()
+
             if execution_task:
                 await self.execution_service.stop()
                 execution_task.cancel()
-            
+
             await self.simulation_service.stop()
             await self.arbitrage_service.stop()
             await self.market_data.stop()
-            
+
             monitor_task.cancel()
-            
+
             try:
                 if execution_task:
                     await execution_task
@@ -120,7 +156,7 @@ class ArbitrageSystem:
                 await monitor_task
             except asyncio.CancelledError:
                 pass
-            
+
             self.running = False
             logger.info("DeFi Arbitrage Trading System stopped")
     
