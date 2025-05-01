@@ -172,12 +172,13 @@ class FlashloanExecutor:
     
     async def execute_cross_dex_trade(self, trade: Dict, execution_result: Dict):
         """Execute a cross-DEX arbitrage trade."""
+        # This method simulates the trade execution as before
         # Extract key parameters
         token0, token1 = trade["token0"], trade["token1"]
         buy_dex, buy_network = trade["buy_dex"], trade["buy_network"]
         sell_dex, sell_network = trade["sell_dex"], trade["sell_network"]
         trade_size_usd = trade.get("optimal_trade_size_usd", 1000)
-        
+
         # Update execution result with trade details
         execution_result.update({
             "token0": token0,
@@ -188,92 +189,162 @@ class FlashloanExecutor:
             "sell_network": sell_network,
             "trade_size_usd": trade_size_usd
         })
-        
+
         # Check if wallet is initialized
         if not self.wallet_address:
             execution_result["status"] = "failed"
             execution_result["message"] = "Wallet not initialized, execution aborted"
             return
-        
+
         # Check if web3 clients are available for both networks
         if buy_network not in self.web3_clients or sell_network not in self.web3_clients:
             execution_result["status"] = "failed"
             execution_result["message"] = f"Web3 client not available for {buy_network} or {sell_network}"
             return
-        
+
         # Select flashloan provider
         flashloan_provider, provider_details = await self.select_flashloan_provider(
-            trade_size_usd, 
-            buy_network, 
+            trade_size_usd,
+            buy_network,
             sell_network
         )
-        
+
         if not flashloan_provider:
             execution_result["status"] = "failed"
             execution_result["message"] = "No suitable flashloan provider found"
             return
-        
+
         execution_result["flashloan_provider"] = flashloan_provider
         execution_result["flashloan_amount"] = trade_size_usd
         execution_result["flashloan_fee"] = provider_details["fee"] * trade_size_usd
-        
-        # In a real implementation, the following steps would be executed:
-        # 1. Prepare flashloan transaction
-        # 2. Execute buy transaction on buy_dex
-        # 3. Execute sell transaction on sell_dex
-        # 4. Repay flashloan with fee
-        # 5. Collect profit
-        
-        # For demonstration, we'll simulate these steps
-        
-        # Simulate flashloan acquisition
-        logger.info(f"Acquiring flashloan of ${trade_size_usd} from {flashloan_provider} on {buy_network}")
+
+        # Simulate the trade execution steps
+        logger.info(f"Simulating flashloan acquisition of ${trade_size_usd} from {flashloan_provider} on {buy_network}")
         flashloan_tx_hash = f"0x{uuid.uuid4().hex}"
         execution_result["transaction_hashes"].append({"type": "flashloan", "hash": flashloan_tx_hash})
-        
-        # Simulate buy transaction
-        logger.info(f"Buying {token1} with {token0} on {buy_dex} ({buy_network})")
+
+        logger.info(f"Simulating buy of {token1} with {token0} on {buy_dex} ({buy_network})")
         buy_tx_hash = f"0x{uuid.uuid4().hex}"
         execution_result["transaction_hashes"].append({"type": "buy", "hash": buy_tx_hash})
-        
-        # Simulate token transfer if cross-network
+
         if buy_network != sell_network:
-            logger.info(f"Transferring {token1} from {buy_network} to {sell_network}")
+            logger.info(f"Simulating transfer of {token1} from {buy_network} to {sell_network}")
             transfer_tx_hash = f"0x{uuid.uuid4().hex}"
             execution_result["transaction_hashes"].append({"type": "transfer", "hash": transfer_tx_hash})
-        
-        # Simulate sell transaction
-        logger.info(f"Selling {token1} for {token0} on {sell_dex} ({sell_network})")
+
+        logger.info(f"Simulating sell of {token1} for {token0} on {sell_dex} ({sell_network})")
         sell_tx_hash = f"0x{uuid.uuid4().hex}"
         execution_result["transaction_hashes"].append({"type": "sell", "hash": sell_tx_hash})
-        
-        # Simulate flashloan repayment
-        logger.info(f"Repaying flashloan to {flashloan_provider}")
+
+        logger.info(f"Simulating flashloan repayment to {flashloan_provider}")
         repay_tx_hash = f"0x{uuid.uuid4().hex}"
         execution_result["transaction_hashes"].append({"type": "repay", "hash": repay_tx_hash})
-        
-        # Calculate profit (in a real implementation, this would be from actual transaction results)
-        # For demonstration, we'll use the simulated profit with some random variation
+
         import random
-        profit_variation = random.uniform(0.8, 1.1)  # 80% to 110% of simulated profit
+        profit_variation = random.uniform(0.8, 1.1)
         profit_usd = trade.get("simulated_profit_usd", 0) * profit_variation
-        
-        # Calculate gas used and cost
-        gas_used = random.randint(500000, 1500000)  # Typical gas usage for complex transactions
+
+        gas_used = random.randint(500000, 1500000)
         gas_price_gwei = WALLET_CONFIG["max_gas_price"].get(buy_network, 100)
-        gas_cost_eth = gas_used * gas_price_gwei * 1e-9  # Convert from gwei to ETH
-        eth_price_usd = 3000  # Placeholder ETH price
+        gas_cost_eth = gas_used * gas_price_gwei * 1e-9
+        eth_price_usd = 3000
         gas_cost_usd = gas_cost_eth * eth_price_usd
-        
-        # Update execution result
+
         execution_result.update({
             "status": "success",
-            "message": "Trade executed successfully",
+            "message": "Trade executed successfully (simulated)",
             "profit_usd": profit_usd,
-            "profit_token": profit_usd / 1.0,  # Assuming token0 is a stablecoin
+            "profit_token": profit_usd / 1.0,
             "gas_used": gas_used,
             "gas_cost_usd": gas_cost_usd
         })
+
+    async def execute_real_aave_flashloan(self, trade: Dict, execution_result: Dict):
+        """Execute a real flashloan trade using Aave protocol."""
+        token0, token1 = trade["token0"], trade["token1"]
+        buy_network = trade["buy_network"]
+        trade_size_usd = trade.get("optimal_trade_size_usd", 1000)
+
+        execution_result.update({
+            "token0": token0,
+            "token1": token1,
+            "buy_network": buy_network,
+            "trade_size_usd": trade_size_usd
+        })
+
+        if not self.wallet_address:
+            execution_result["status"] = "failed"
+            execution_result["message"] = "Wallet not initialized, execution aborted"
+            return
+
+        if buy_network not in self.web3_clients:
+            execution_result["status"] = "failed"
+            execution_result["message"] = f"Web3 client not available for {buy_network}"
+            return
+
+        flashloan_provider, provider_details = await self.select_flashloan_provider(
+            trade_size_usd,
+            buy_network
+        )
+
+        if flashloan_provider != "aave":
+            execution_result["status"] = "failed"
+            execution_result["message"] = "Selected flashloan provider is not Aave"
+            return
+
+        try:
+            web3 = self.web3_clients[buy_network]
+            lending_pool_address = self.get_aave_lending_pool_address(buy_network)
+            if not lending_pool_address:
+                execution_result["status"] = "failed"
+                execution_result["message"] = f"Aave LendingPool address not found for network {buy_network}"
+                return
+
+            lending_pool = web3.eth.contract(address=lending_pool_address, abi=self.get_aave_lending_pool_abi())
+
+            assets = [web3.toChecksumAddress(self.get_token_address(token0, buy_network))]
+            amounts = [web3.toWei(trade_size_usd, 'ether')]  # Assuming token0 is ETH or wrapped ETH
+            modes = [0]  # 0 means no debt (flashloan)
+            on_behalf_of = self.wallet_address
+            params = b''  # Additional params can be encoded here
+            referral_code = 0
+
+            tx = lending_pool.functions.flashLoan(
+                self.wallet_address,
+                assets,
+                amounts,
+                modes,
+                on_behalf_of,
+                params,
+                referral_code
+            ).buildTransaction({
+                'from': self.wallet_address,
+                'nonce': web3.eth.getTransactionCount(self.wallet_address),
+                'gas': 2000000,
+                'gasPrice': web3.eth.gas_price
+            })
+
+            signed_tx = web3.eth.account.sign_transaction(tx, private_key=WALLET_CONFIG.get("private_key"))
+            tx_hash = web3.eth.sendRawTransaction(signed_tx.rawTransaction)
+            execution_result["transaction_hashes"].append({"type": "flashloan", "hash": tx_hash.hex()})
+
+            receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+            if receipt.status != 1:
+                execution_result["status"] = "failed"
+                execution_result["message"] = "Flashloan transaction failed"
+                return
+
+            execution_result.update({
+                "status": "success",
+                "message": "Flashloan executed successfully",
+                "gas_used": receipt.gasUsed,
+                "gas_cost_usd": receipt.gasUsed * web3.eth.gas_price * 1e-9 * 3000  # ETH price placeholder
+            })
+
+        except Exception as e:
+            execution_result["status"] = "failed"
+            execution_result["message"] = f"Flashloan execution error: {str(e)}"
+            logger.error(f"Flashloan execution error: {e}")
     
     async def execute_triangular_trade(self, trade: Dict, execution_result: Dict):
         """Execute a triangular arbitrage trade."""
@@ -361,5 +432,13 @@ class FlashloanExecutor:
         profit_usd = trade.get("simulated_profit_usd", 0) * profit_variation
         
         # Calculate gas used and cost
-        gas_used = random.randint(800000, 2000000)  # Typical gas usage for co
+        gas_used = random.randint(800000, 2000000)  # Typical gas usage for contract execution
+
+        execution_result["gas_used"] = gas_used
+        execution_result["profit_usd"] = profit_usd
+        execution_result["success"] = True
+
+        logger.info(f"Execution result: {execution_result}")
+        self.execution_results.append(execution_result)
+        return execution_result
 (Content truncated due to size limit. Use line ranges to read in chunks)
