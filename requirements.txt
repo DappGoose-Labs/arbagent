@@ -1,6 +1,6 @@
 # Core dependencies
 python-dotenv==1.0.0
-web3==6.15.1
+web3==7.15.0
 eth-account==0.10.0
 eth-typing==3.5.2
 eth-utils==2.3.1
